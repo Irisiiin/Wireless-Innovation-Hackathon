@@ -1,25 +1,24 @@
 // server/server.js
 import express from 'express';
 import cors from 'cors';
+import os from 'os';
 
 const app = express();
-const PORT = process.env.PORT || 4000;
+app.use(cors());
+app.use(express.json());
 
-app.use(cors());            // dev 阶段开放跨域，方便前端本地调试
-app.use(express.json());    // 解析 JSON body
+// ---- mock stores
+const placeRatings = []; // {placeId,name,wheelchair,lat,lon,score,ts}
+const roadRatings  = []; // {lat,lon,score,ts}
 
-// In-memory stores (dev only)
-const placeRatings = []; // {placeId, name, wheelchair, lat, lon, score, ts}
-const roadRatings  = []; // {lat, lon, score, ts}
-
-// Health check
+// ---- health
 app.get('/health', (_, res) => res.json({ ok: true }));
 
-// --- READ (for your overlay layers)
+// ---- read overlays
 app.get('/rate/place', (_, res) => res.json(placeRatings));
 app.get('/rate/road',  (_, res) => res.json(roadRatings));
 
-// --- WRITE (from your app buttons)
+// ---- write overlays
 app.post('/rate/place', (req, res) => {
   const { placeId, name, wheelchair, lat, lon, score } = req.body || {};
   if (!placeId || typeof lat !== 'number' || typeof lon !== 'number' || ![1,-1].includes(score)) {
@@ -38,11 +37,16 @@ app.post('/rate/road', (req, res) => {
   res.json({ ok: true, count: roadRatings.length });
 });
 
-// Debug stats
-app.get('/debug/stats', (_, res) => {
-  res.json({ places: placeRatings.length, roads: roadRatings.length });
-});
+// ---- single listen ONLY
+const HOST = '0.0.0.0';                         // 允许手机访问
+const PORT = Number(process.env.PORT) || 5050;  // 默认 5050，避开常见占用端口
 
-app.listen(PORT, () => {
-  console.log(`Mock API at http://localhost:${PORT}`);
+// 打印本机局域网 IP
+const ip = Object.values(os.networkInterfaces())
+  .flat()
+  .find(i => i && i.family === 'IPv4' && !i.internal)?.address;
+
+app.listen(PORT, HOST, () => {
+  console.log(`Mock API:   http://localhost:${PORT}`);
+  if (ip) console.log(`LAN (phone): http://${ip}:${PORT}`);
 });
